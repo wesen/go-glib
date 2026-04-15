@@ -277,18 +277,75 @@ func (v *Object) SetProperty(name string, value interface{}) error {
 
 // SetPropertyValue is like SetProperty except it operates on native
 // GValues instead of first trying to convert from a Go value.
+// If the value's type doesn't exactly match the property's type, it attempts
+// to coerce the value through compatible fundamental types (e.g., gint → guint,
+// gint → GEnum, guint → GFlags).
 func (v *Object) SetPropertyValue(name string, value *Value) error {
 	propType, err := v.GetPropertyType(name)
 	if err != nil {
 		return err
 	}
-	valType, _, err := value.Type()
+	valType, valFund, err := value.Type()
 	if err != nil {
 		return err
 	}
-	if valType != propType {
-		return fmt.Errorf("invalid type %s for property %s", value.TypeName(), name)
+
+	// Exact match — fast path
+	if valType == propType {
+		return v.setPropertyValueNative(name, value)
 	}
+
+	// Try type coercion based on fundamental types
+	propFund := propType.Fundamental()
+
+	// Get the numeric value from the incoming GValue
+	valFundType, _, _ := value.Type()
+	_ = valFundType
+
+	switch {
+	// int/uint → GEnum (e.g., Go int → GstX264EncPreset)
+	case propFund == TYPE_ENUM && (valFund == TYPE_INT || valFund == TYPE_UINT || valFund == TYPE_INT64 || valFund == TYPE_UINT64):
+		coerced, err := ValueInit(propType)
+		if err != nil {
+			return fmt.Errorf("invalid type %s for property %s: %w", value.TypeName(), name, err)
+		}
+		coerced.SetEnum(int(value.GetBasicInt()))
+		return v.setPropertyValueNative(name, coerced)
+
+	// int/uint → GFlags (e.g., Go int → GstX264EncTune)
+	case propFund == TYPE_FLAGS && (valFund == TYPE_INT || valFund == TYPE_UINT || valFund == TYPE_INT64 || valFund == TYPE_UINT64):
+		coerced, err := ValueInit(propType)
+		if err != nil {
+			return fmt.Errorf("invalid type %s for property %s: %w", value.TypeName(), name, err)
+		}
+		coerced.SetFlags(uint(value.GetBasicInt()))
+		return v.setPropertyValueNative(name, coerced)
+
+	// int → guint (e.g., Go int → guint property)
+	case propFund == TYPE_UINT && (valFund == TYPE_INT || valFund == TYPE_INT64):
+		coerced, err := ValueInit(propType)
+		if err != nil {
+			return fmt.Errorf("invalid type %s for property %s: %w", value.TypeName(), name, err)
+		}
+		coerced.SetUInt(uint(value.GetBasicInt()))
+		return v.setPropertyValueNative(name, coerced)
+
+	// uint → gint (e.g., Go uint → gint property)
+	case propFund == TYPE_INT && (valFund == TYPE_UINT || valFund == TYPE_UINT64):
+		coerced, err := ValueInit(propType)
+		if err != nil {
+			return fmt.Errorf("invalid type %s for property %s: %w", value.TypeName(), name, err)
+		}
+		coerced.SetInt(int(value.GetBasicInt()))
+		return v.setPropertyValueNative(name, coerced)
+
+	default:
+		return fmt.Errorf("invalid type %s for property %s (expected %s)", value.TypeName(), name, propType.Name())
+	}
+}
+
+// setPropertyValueNative does the actual C call to set the property.
+func (v *Object) setPropertyValueNative(name string, value *Value) error {
 	cstr := C.CString(name)
 	defer C.free(unsafe.Pointer(cstr))
 	C.g_object_set_property(v.GObject, (*C.gchar)(cstr), value.native())

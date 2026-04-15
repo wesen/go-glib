@@ -121,6 +121,12 @@ func (t Type) IsA(isAType Type) bool {
 	return gobool(C.g_type_is_a(C.GType(t), C.GType(isAType)))
 }
 
+// Fundamental returns the fundamental (parent) type of the given type.
+// For example, GstX264EncPreset's fundamental type is G_TYPE_ENUM.
+func (t Type) Fundamental() Type {
+	return Type(C._g_value_fundamental(C.GType(t)))
+}
+
 // TypeFromName is a wrapper around g_type_from_name
 func TypeFromName(typeName string) Type {
 	cstr := (*C.gchar)(C.CString(typeName))

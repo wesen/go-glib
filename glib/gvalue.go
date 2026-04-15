@@ -652,3 +652,32 @@ func (v *Value) GetString() (string, error) {
 	}
 	return C.GoString((*C.char)(c)), nil
 }
+
+// GetBasicInt returns the numeric value stored in the GValue as an int64,
+// regardless of whether it's stored as gint, guint, gint64, guint64, enum, or flags.
+// This is useful for type coercion when setting properties.
+func (v *Value) GetBasicInt() int64 {
+	if v == nil || v.native() == nil {
+		return 0
+	}
+	_, fund, err := v.Type()
+	if err != nil {
+		return 0
+	}
+	switch fund {
+	case TYPE_INT:
+		return int64(C.g_value_get_int(v.native()))
+	case TYPE_UINT:
+		return int64(C.g_value_get_uint(v.native()))
+	case TYPE_INT64:
+		return int64(C.g_value_get_int64(v.native()))
+	case TYPE_UINT64:
+		return int64(C.g_value_get_uint64(v.native()))
+	case TYPE_ENUM:
+		return int64(C.g_value_get_enum(v.native()))
+	case TYPE_FLAGS:
+		return int64(C.g_value_get_flags(v.native()))
+	default:
+		return 0
+	}
+}
