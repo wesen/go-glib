@@ -681,3 +681,23 @@ func (v *Value) GetBasicInt() int64 {
 		return 0
 	}
 }
+
+// GetBasicFloat returns the numeric value stored in the GValue as a float64,
+// regardless of whether it's stored as gfloat or gdouble.
+func (v *Value) GetBasicFloat() float64 {
+	if v == nil || v.native() == nil {
+		return 0
+	}
+	_, fund, err := v.Type()
+	if err != nil {
+		return 0
+	}
+	switch fund {
+	case TYPE_FLOAT:
+		return float64(C.g_value_get_float(v.native()))
+	case TYPE_DOUBLE:
+		return float64(C.g_value_get_double(v.native()))
+	default:
+		return 0
+	}
+}

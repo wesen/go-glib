@@ -339,6 +339,15 @@ func (v *Object) SetPropertyValue(name string, value *Value) error {
 		coerced.SetInt(int(value.GetBasicInt()))
 		return v.setPropertyValueNative(name, coerced)
 
+	// double → float (e.g., Go float64 → gfloat property)
+	case propFund == TYPE_FLOAT && valFund == TYPE_DOUBLE:
+		coerced, err := ValueInit(propType)
+		if err != nil {
+			return fmt.Errorf("invalid type %s for property %s: %w", value.TypeName(), name, err)
+		}
+		coerced.SetFloat(float32(value.GetBasicFloat()))
+		return v.setPropertyValueNative(name, coerced)
+
 	default:
 		return fmt.Errorf("invalid type %s for property %s (expected %s)", value.TypeName(), name, propType.Name())
 	}
