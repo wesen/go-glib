@@ -303,8 +303,8 @@ func (v *Object) SetPropertyValue(name string, value *Value) error {
 	_ = valFundType
 
 	switch {
-	// int/uint → GEnum (e.g., Go int → GstX264EncPreset)
-	case propFund == TYPE_ENUM && (valFund == TYPE_INT || valFund == TYPE_UINT || valFund == TYPE_INT64 || valFund == TYPE_UINT64):
+	// Numeric types → GEnum (e.g., Go int → GstX264EncPreset)
+	case propFund == TYPE_ENUM && isNumericFundamental(valFund):
 		coerced, err := ValueInit(propType)
 		if err != nil {
 			return fmt.Errorf("invalid type %s for property %s: %w", value.TypeName(), name, err)
@@ -312,8 +312,8 @@ func (v *Object) SetPropertyValue(name string, value *Value) error {
 		coerced.SetEnum(int(value.GetBasicInt()))
 		return v.setPropertyValueNative(name, coerced)
 
-	// int/uint → GFlags (e.g., Go int → GstX264EncTune)
-	case propFund == TYPE_FLAGS && (valFund == TYPE_INT || valFund == TYPE_UINT || valFund == TYPE_INT64 || valFund == TYPE_UINT64):
+	// Numeric types → GFlags (e.g., Go int → GstX264EncTune)
+	case propFund == TYPE_FLAGS && isNumericFundamental(valFund):
 		coerced, err := ValueInit(propType)
 		if err != nil {
 			return fmt.Errorf("invalid type %s for property %s: %w", value.TypeName(), name, err)
@@ -321,8 +321,10 @@ func (v *Object) SetPropertyValue(name string, value *Value) error {
 		coerced.SetFlags(uint(value.GetBasicInt()))
 		return v.setPropertyValueNative(name, coerced)
 
-	// int → guint (e.g., Go int → guint property)
-	case propFund == TYPE_UINT && (valFund == TYPE_INT || valFund == TYPE_INT64):
+	// Signed or wider → unsigned (e.g., Go int → guint property, uint64 → guint narrowing)
+	case (propFund == TYPE_UINT || propFund == TYPE_ULONG) &&
+		(valFund == TYPE_INT || valFund == TYPE_INT64 || valFund == TYPE_LONG ||
+			valFund == TYPE_UINT64):
 		coerced, err := ValueInit(propType)
 		if err != nil {
 			return fmt.Errorf("invalid type %s for property %s: %w", value.TypeName(), name, err)
@@ -330,8 +332,10 @@ func (v *Object) SetPropertyValue(name string, value *Value) error {
 		coerced.SetUInt(uint(value.GetBasicInt()))
 		return v.setPropertyValueNative(name, coerced)
 
-	// uint → gint (e.g., Go uint → gint property)
-	case propFund == TYPE_INT && (valFund == TYPE_UINT || valFund == TYPE_UINT64):
+	// Unsigned or wider → signed (e.g., Go uint → gint property, int64 → gint narrowing)
+	case (propFund == TYPE_INT || propFund == TYPE_LONG) &&
+		(valFund == TYPE_UINT || valFund == TYPE_UINT64 || valFund == TYPE_ULONG ||
+			valFund == TYPE_INT64):
 		coerced, err := ValueInit(propType)
 		if err != nil {
 			return fmt.Errorf("invalid type %s for property %s: %w", value.TypeName(), name, err)
@@ -350,6 +354,16 @@ func (v *Object) SetPropertyValue(name string, value *Value) error {
 
 	default:
 		return fmt.Errorf("invalid type %s for property %s (expected %s)", value.TypeName(), name, propType.Name())
+	}
+}
+
+// isNumericFundamental returns true for all integer-type GType fundamentals.
+func isNumericFundamental(t Type) bool {
+	switch t {
+	case TYPE_INT, TYPE_UINT, TYPE_INT64, TYPE_UINT64, TYPE_LONG, TYPE_ULONG, TYPE_CHAR, TYPE_UCHAR:
+		return true
+	default:
+		return false
 	}
 }
 

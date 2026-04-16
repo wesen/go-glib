@@ -677,6 +677,10 @@ func (v *Value) GetBasicInt() int64 {
 		return int64(C.g_value_get_enum(v.native()))
 	case TYPE_FLAGS:
 		return int64(C.g_value_get_flags(v.native()))
+	case TYPE_LONG:
+		return int64(C.g_value_get_long(v.native()))
+	case TYPE_ULONG:
+		return int64(C.g_value_get_ulong(v.native()))
 	default:
 		return 0
 	}
